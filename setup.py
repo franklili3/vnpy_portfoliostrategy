@@ -1,4 +1,4 @@
 from setuptools import setup
 
 
-setup()
+setup(version='2.0.0')
