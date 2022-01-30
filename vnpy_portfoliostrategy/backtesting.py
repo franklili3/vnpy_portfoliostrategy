@@ -71,6 +71,7 @@ class BacktestingEngine:
 
         self.daily_results = {}
         self.daily_df = None
+        self.inverse_option = False
 
     def clear_data(self) -> None:
         """
@@ -102,7 +103,8 @@ class BacktestingEngine:
         priceticks: Dict[str, float],
         capital: int = 0,
         end: datetime = None,
-        risk_free: float = 0
+        risk_free: float = 0,
+        inverse_option : bool = False
     ) -> None:
         """"""
         self.vt_symbols = vt_symbols
@@ -117,6 +119,7 @@ class BacktestingEngine:
         self.end = end
         self.capital = capital
         self.risk_free = risk_free
+        self.inverse_option = inverse_option
 
     def add_strategy(self, strategy_class: type, setting: dict) -> None:
         """"""
@@ -246,6 +249,7 @@ class BacktestingEngine:
                 self.sizes,
                 self.rates,
                 self.slippages,
+                self.inverse_option
             )
 
             pre_closes = daily_result.close_prices
@@ -534,7 +538,7 @@ class BacktestingEngine:
         if daily_result:
             daily_result.update_close_prices(close_prices)
         else:
-            self.daily_results[d] = PortfolioDailyResult(d, close_prices)
+            self.daily_results[d] = PortfolioDailyResult(d, close_prices, inverse_option=self.inverse_option)
 
     def new_bars(self, dt: datetime) -> None:
         """"""
@@ -751,10 +755,11 @@ class BacktestingEngine:
 class ContractDailyResult:
     """"""
 
-    def __init__(self, result_date: date, close_price: float):
+    def __init__(self, result_date: date, close_price: float, **kw):
         """"""
         self.date: date = result_date
         self.close_price: float = close_price
+        self.kw: dict = kw
         self.pre_close: float = 0
 
         self.trades: List[TradeData] = []
@@ -782,7 +787,8 @@ class ContractDailyResult:
         start_pos: float,
         size: int,
         rate: float,
-        slippage: float
+        slippage: float,
+        inverse_option: bool
     ) -> None:
         """"""
         # If no pre_close provided on the first day,
@@ -796,7 +802,11 @@ class ContractDailyResult:
         self.start_pos = start_pos
         self.end_pos = start_pos
 
-        self.holding_pnl = self.start_pos * (self.close_price - self.pre_close) * size
+        if not inverse_option:     # For normal contract
+            self.holding_pnl = self.start_pos * (self.close_price - self.pre_close) * size
+        else:               # For crypto currency inverse contract
+            perpetual_close_price = self.kw['DERIBIT_PERP_BTC_USD']
+            self.holding_pnl = self.start_pos * (self.close_price - self.pre_close) * size * perpetual_close_price
 
         # Trading pnl is the pnl from new trade during the day
         self.trade_count = len(self.trades)
@@ -809,9 +819,15 @@ class ContractDailyResult:
 
             self.end_pos += pos_change
 
-            turnover = trade.volume * size * trade.price
+            # For normal contract
+            if not inverse_option:
+                self.trading_pnl += pos_change * (self.close_price - trade.price) * size
 
-            self.trading_pnl += pos_change * (self.close_price - trade.price) * size
+            # For crypto currency inverse contract
+            else:
+                self.trading_pnl += pos_change * (self.close_price - trade.price) * size * perpetual_close_price
+
+            turnover = trade.volume * size * trade.price
             self.slippage += trade.volume * size * slippage
             self.turnover += turnover
             self.commission += turnover * rate
@@ -828,18 +844,22 @@ class ContractDailyResult:
 class PortfolioDailyResult:
     """"""
 
-    def __init__(self, result_date: date, close_prices: Dict[str, float]):
+    def __init__(self, result_date: date, close_prices: Dict[str, float], **kw):
         """"""
         self.date: date = result_date
         self.close_prices: Dict[str, float] = close_prices
         self.pre_closes: Dict[str, float] = {}
         self.start_poses: Dict[str, float] = {}
         self.end_poses: Dict[str, float] = {}
-
+        self.inverse_option = kw['inverse_option']
         self.contract_results: Dict[str, ContractDailyResult] = {}
 
         for vt_symbol, close_price in close_prices.items():
-            self.contract_results[vt_symbol] = ContractDailyResult(result_date, close_price)
+            if not self.inverse_option:
+                self.contract_results[vt_symbol] = ContractDailyResult(result_date, close_price)
+            else:
+                perpetual_close_price = close_prices['DERIBIT_PERP_BTC_USD']
+                self.contract_results[vt_symbol] = ContractDailyResult(result_date, close_price, perpetual_close_price=perpetual_close_price)
 
         self.trade_count: int = 0
         self.turnover: float = 0
