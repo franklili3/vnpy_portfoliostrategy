@@ -243,13 +243,12 @@ class BacktestingEngine:
         start_poses = {}
 
         for daily_result in self.daily_results.values():
-            daily_result.calculate_pnl(
+            daily_result.calculate_portfolio_pnl(
                 pre_closes,
                 start_poses,
                 self.sizes,
                 self.rates,
-                self.slippages,
-                self.inverse_option
+                self.slippages
             )
 
             pre_closes = daily_result.close_prices
@@ -781,7 +780,7 @@ class ContractDailyResult:
         """"""
         self.trades.append(trade)
 
-    def calculate_pnl(
+    def calculate_contract_pnl(
         self,
         pre_close: float,
         start_pos: float,
@@ -875,7 +874,7 @@ class PortfolioDailyResult:
         contract_result = self.contract_results[trade.vt_symbol]
         contract_result.add_trade(trade)
 
-    def calculate_pnl(
+    def calculate_portfolio_pnl(
         self,
         pre_closes: Dict[str, float],
         start_poses: Dict[str, float],
@@ -887,12 +886,13 @@ class PortfolioDailyResult:
         self.pre_closes = pre_closes
 
         for vt_symbol, contract_result in self.contract_results.items():
-            contract_result.calculate_pnl(
+            contract_result.calculate_contract_pnl(
                 pre_closes.get(vt_symbol, 0),
                 start_poses.get(vt_symbol, 0),
                 sizes[vt_symbol],
                 rates[vt_symbol],
-                slippages[vt_symbol]
+                slippages[vt_symbol],
+                self.inverse_option
             )
 
             self.trade_count += contract_result.trade_count
