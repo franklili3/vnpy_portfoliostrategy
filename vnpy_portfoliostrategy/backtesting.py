@@ -804,7 +804,7 @@ class ContractDailyResult:
         if not inverse_option:     # For normal contract
             self.holding_pnl = self.start_pos * (self.close_price - self.pre_close) * size
         else:               # For crypto currency inverse contract
-            perpetual_close_price = self.kw['DERIBIT_PERP_BTC_USD.DERIBIT']
+            perpetual_close_price = self.kw['perpetual_close_price']
             self.holding_pnl = self.start_pos * (self.close_price - self.pre_close) * size * perpetual_close_price
 
         # Trading pnl is the pnl from new trade during the day
