@@ -1,5 +1,6 @@
 from collections import defaultdict
 from datetime import date, datetime, timedelta
+from tkinter.messagebox import NO
 from typing import Dict, List, Set, Tuple
 from functools import lru_cache, partial
 from copy import copy
@@ -854,16 +855,20 @@ class PortfolioDailyResult:
         self.start_poses: Dict[str, float] = {}
         self.end_poses: Dict[str, float] = {}
         self.contract_results: Dict[str, ContractDailyResult] = {}
-        self.kw: dict = kw
-        #self.inverse_option = kw['inverse_option']
-        #self.btc_vt_symbol = kw['btc_vt_symbol']
-        #print('self.btc_vt_symbol: ', self.btc_vt_symbol)
+        self.inverse_option = False
+        self.btc_vt_symbol = None
+        for k, v in kw.items():
+            if k == 'inverse_option':
+                self.inverse_option = v
+            elif k == 'btc_vt_symbol':
+                self.btc_vt_symbol = v
+        print('self.btc_vt_symbol: ', self.btc_vt_symbol)
         
         for vt_symbol, close_price in close_prices.items():
-            if not self.kw['inverse_option']:
+            if not self.inverse_option:
                 self.contract_results[vt_symbol] = ContractDailyResult(result_date, close_price)
             else:
-                btc_close_price = close_prices[self.kw['btc_vt_symbol']]
+                btc_close_price = close_prices[self.btc_vt_symbol]
                 self.contract_results[vt_symbol] = ContractDailyResult(result_date, close_price, btc_close_price=btc_close_price)
 
         self.trade_count: int = 0
@@ -898,7 +903,7 @@ class PortfolioDailyResult:
                 sizes[vt_symbol],
                 rates[vt_symbol],
                 slippages[vt_symbol],
-                self.kw['inverse_option']
+                self.inverse_option
             )
 
             self.trade_count += contract_result.trade_count
