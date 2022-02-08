@@ -72,6 +72,7 @@ class BacktestingEngine:
         self.daily_results = {}
         self.daily_df = None
         self.inverse_option = False
+        self.btc_vt_symbol: str = ''
 
     def clear_data(self) -> None:
         """
@@ -104,7 +105,8 @@ class BacktestingEngine:
         capital: int = 0,
         end: datetime = None,
         risk_free: float = 0,
-        inverse_option : bool = False
+        inverse_option : bool = False,
+        btc_vt_symbol: str = ''
     ) -> None:
         """"""
         self.vt_symbols = vt_symbols
@@ -120,6 +122,7 @@ class BacktestingEngine:
         self.capital = capital
         self.risk_free = risk_free
         self.inverse_option = inverse_option
+        self.btc_vt_symbol = btc_vt_symbol
 
     def add_strategy(self, strategy_class: type, setting: dict) -> None:
         """"""
@@ -537,7 +540,7 @@ class BacktestingEngine:
         if daily_result:
             daily_result.update_close_prices(close_prices)
         else:
-            self.daily_results[d] = PortfolioDailyResult(d, close_prices, inverse_option=self.inverse_option)
+            self.daily_results[d] = PortfolioDailyResult(d, close_prices, inverse_option=self.inverse_option, btc_vt_symbol=self.btc_vt_symbol)
 
     def new_bars(self, dt: datetime) -> None:
         """"""
@@ -804,8 +807,8 @@ class ContractDailyResult:
         if not inverse_option:     # For normal contract
             self.holding_pnl = self.start_pos * (self.close_price - self.pre_close) * size
         else:               # For crypto currency inverse contract
-            perpetual_close_price = self.kw['perpetual_close_price']
-            self.holding_pnl = self.start_pos * (self.close_price - self.pre_close) * size * perpetual_close_price
+            btc_close_price = self.kw['btc_close_price']
+            self.holding_pnl = self.start_pos * (self.close_price - self.pre_close) * size * btc_close_price
 
         # Trading pnl is the pnl from new trade during the day
         self.trade_count = len(self.trades)
@@ -824,7 +827,7 @@ class ContractDailyResult:
 
             # For crypto currency inverse contract
             else:
-                self.trading_pnl += pos_change * (self.close_price - trade.price) * size * perpetual_close_price
+                self.trading_pnl += pos_change * (self.close_price - trade.price) * size * btc_close_price
 
             turnover = trade.volume * size * trade.price
             self.slippage += trade.volume * size * slippage
@@ -850,15 +853,18 @@ class PortfolioDailyResult:
         self.pre_closes: Dict[str, float] = {}
         self.start_poses: Dict[str, float] = {}
         self.end_poses: Dict[str, float] = {}
-        self.inverse_option = kw['inverse_option']
         self.contract_results: Dict[str, ContractDailyResult] = {}
-
+        self.kw: dict = kw
+        #self.inverse_option = kw['inverse_option']
+        #self.btc_vt_symbol = kw['btc_vt_symbol']
+        #print('self.btc_vt_symbol: ', self.btc_vt_symbol)
+        
         for vt_symbol, close_price in close_prices.items():
-            if not self.inverse_option:
+            if not self.kw['inverse_option']:
                 self.contract_results[vt_symbol] = ContractDailyResult(result_date, close_price)
             else:
-                perpetual_close_price = close_prices['DERIBIT_PERP_BTC_USD.DERIBIT']
-                self.contract_results[vt_symbol] = ContractDailyResult(result_date, close_price, perpetual_close_price=perpetual_close_price)
+                btc_close_price = close_prices[self.kw['btc_vt_symbol']]
+                self.contract_results[vt_symbol] = ContractDailyResult(result_date, close_price, btc_close_price=btc_close_price)
 
         self.trade_count: int = 0
         self.turnover: float = 0
@@ -892,7 +898,7 @@ class PortfolioDailyResult:
                 sizes[vt_symbol],
                 rates[vt_symbol],
                 slippages[vt_symbol],
-                self.inverse_option
+                self.kw['inverse_option']
             )
 
             self.trade_count += contract_result.trade_count
