@@ -862,7 +862,7 @@ class PortfolioDailyResult:
                 self.inverse_option = v
             elif k == 'btc_vt_symbol':
                 self.btc_vt_symbol = v
-        print('self.btc_vt_symbol: ', self.btc_vt_symbol)
+        #print('self.btc_vt_symbol: ', self.btc_vt_symbol)
         
         for vt_symbol, close_price in close_prices.items():
             if not self.inverse_option:
