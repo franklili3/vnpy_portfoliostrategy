@@ -54,7 +54,7 @@ class BacktestingEngine:
         self.strategy_class: StrategyTemplate = None
         self.strategy: StrategyTemplate = None
         self.bars: Dict[str, BarData] = {}
-        self.datetime: datetime = None
+        self.datetime = None
 
         self.interval: Interval = None
         self.days: int = 0
@@ -132,7 +132,7 @@ class BacktestingEngine:
             self, strategy_class.__name__, copy(self.vt_symbols), setting
         )
 
-    def load_data(self) -> None:
+    def load_data(self, isdaily = False) -> None:
         """"""
         self.output("开始加载历史数据")
 
@@ -170,7 +170,10 @@ class BacktestingEngine:
 
                 for bar in data:
                     self.dts.add(bar.datetime)
-                    self.history_data[(bar.datetime, vt_symbol)] = bar
+                    if isdaily == False:
+                        self.history_data[(bar.datetime, vt_symbol)] = bar
+                    else:
+                        self.history_data[(bar.datetime.date, vt_symbol)] = bar
                     data_count += 1
 
                 progress += progress_delta / total_delta
@@ -185,30 +188,51 @@ class BacktestingEngine:
 
         self.output("所有历史数据加载完成")
 
-    def run_backtesting(self) -> None:
+    def run_backtesting(self, isdaily = False) -> None:
         """"""
         self.strategy.on_init()
 
-        # Generate sorted datetime list
         dts = list(self.dts)
-        dts.sort()
+        if isdaily == False:
+            # Generate sorted datetime list
+            dts.sort()
+        else:
+            # Generate sorted date list
+            dates = []
+            for item in dts:
+                dates.append(item.date)
+                dates.sort()
+
 
         # Use the first [days] of history data for initializing strategy
         day_count = 0
         ix = 0
+        if isdaily == False:
+            for ix, dt in enumerate(dts):
+                if self.datetime and dt.day != self.datetime.day:
+                    day_count += 1
+                    if day_count >= self.days:
+                        break
 
-        for ix, dt in enumerate(dts):
-            if self.datetime and dt.day != self.datetime.day:
-                day_count += 1
-                if day_count >= self.days:
-                    break
+                try:
+                    self.new_bars(dt)
+                except Exception:
+                    self.output("触发异常，回测终止")
+                    self.output(traceback.format_exc())
+                    return
+        else:
+            for ix, date in enumerate(dates):
+                if self.datetime and date.day != self.datetime.day:
+                    day_count += 1
+                    if day_count >= self.days:
+                        break
 
-            try:
-                self.new_bars(dt)
-            except Exception:
-                self.output("触发异常，回测终止")
-                self.output(traceback.format_exc())
-                return
+                try:
+                    self.new_bars(date)
+                except Exception:
+                    self.output("触发异常，回测终止")
+                    self.output(traceback.format_exc())
+                    return
 
         self.strategy.inited = True
         self.output("策略初始化完成")
@@ -543,7 +567,7 @@ class BacktestingEngine:
         else:
             self.daily_results[d] = PortfolioDailyResult(d, close_prices, inverse_option=self.inverse_option, btc_vt_symbol=self.btc_vt_symbol)
 
-    def new_bars(self, dt: datetime) -> None:
+    def new_bars(self, dt) -> None:
         """"""
         self.datetime = dt
 
