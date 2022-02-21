@@ -799,7 +799,8 @@ class ContractDailyResult:
         size: int,
         rate: float,
         slippage: float,
-        inverse_option: bool
+        inverse_option: bool,
+        btc_vt_symbol: str
     ) -> None:
         """"""
         # If no pre_close provided on the first day,
@@ -860,6 +861,7 @@ class PortfolioDailyResult:
         self.date: date = result_date
         self.close_prices: Dict[str, float] = close_prices
         self.pre_closes: Dict[str, float] = {}
+        self.pre_btc_closes: Dict[str, float] = {}
         self.start_poses: Dict[str, float] = {}
         self.end_poses: Dict[str, float] = {}
         self.contract_results: Dict[str, ContractDailyResult] = {}
@@ -911,7 +913,8 @@ class PortfolioDailyResult:
                 sizes[vt_symbol],
                 rates[vt_symbol],
                 slippages[vt_symbol],
-                self.inverse_option
+                self.inverse_option,
+                self.btc_vt_symbol
             )
 
             self.trade_count += contract_result.trade_count
