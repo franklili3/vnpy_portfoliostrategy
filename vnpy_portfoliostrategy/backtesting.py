@@ -873,9 +873,9 @@ class PortfolioDailyResult:
         #print('self.btc_vt_symbol: ', self.btc_vt_symbol)
         
         for vt_symbol, close_price in close_prices.items():
-            if not self.inverse_option:
+            if not self.inverse_option: # for normal contract
                 self.contract_results[vt_symbol] = ContractDailyResult(result_date, close_price)
-            else:
+            else:  # for inverse contract
                 btc_close_price = close_prices[self.btc_vt_symbol]
                 self.contract_results[vt_symbol] = ContractDailyResult(result_date, close_price, btc_close_price=btc_close_price)
 
