@@ -772,6 +772,7 @@ class ContractDailyResult:
         self.close_price: float = close_price
         self.kw: dict = kw
         self.pre_close: float = 0
+        self.pre_btc_close: float = 0
 
         self.trades: List[TradeData] = []
         self.trade_count: int = 0
@@ -795,20 +796,22 @@ class ContractDailyResult:
     def calculate_contract_pnl(
         self,
         pre_close: float,
+        pre_btc_close: float,
         start_pos: float,
         size: int,
         rate: float,
         slippage: float,
-        inverse_option: bool,
-        btc_vt_symbol: str
+        inverse_option: bool
     ) -> None:
         """"""
         # If no pre_close provided on the first day,
         # use value 1 to avoid zero division error
         if pre_close:
             self.pre_close = pre_close
+            self.pre_btc_close = pre_btc_close
         else:
             self.pre_close = 1
+            self.pre_btc_close = 1
 
         # Holding pnl is the pnl from holding position at day start
         self.start_pos = start_pos
@@ -818,7 +821,7 @@ class ContractDailyResult:
             self.holding_pnl = self.start_pos * (self.close_price - self.pre_close) * size
         else:               # For crypto currency inverse contract
             btc_close_price = self.kw['btc_close_price']
-            self.holding_pnl = self.start_pos * (self.close_price - self.pre_close) * size * btc_close_price
+            self.holding_pnl = self.start_pos * (self.close_price * btc_close_price - self.pre_close * pre_btc_close) * size
 
         # Trading pnl is the pnl from new trade during the day
         self.trade_count = len(self.trades)
@@ -834,15 +837,19 @@ class ContractDailyResult:
             # For normal contract
             if not inverse_option:
                 self.trading_pnl += pos_change * (self.close_price - trade.price) * size
+                turnover = trade.volume * size * trade.price
+                self.slippage += trade.volume * size * slippage
+                self.turnover += turnover
+                self.commission += turnover * rate
 
             # For crypto currency inverse contract
             else:
-                self.trading_pnl += pos_change * (self.close_price - trade.price) * size * btc_close_price
+                self.trading_pnl += pos_change * size * (self.close_price * btc_close_price - trade.price * pre_btc_close)
+                turnover = trade.volume * size * trade.price * btc_close_price
+                self.slippage += trade.volume * size * slippage * btc_close_price
+                self.turnover += turnover
+                self.commission += turnover * rate 
 
-            turnover = trade.volume * size * trade.price
-            self.slippage += trade.volume * size * slippage
-            self.turnover += turnover
-            self.commission += turnover * rate
 
         # Net pnl takes account of commission and slippage cost
         self.total_pnl = self.trading_pnl + self.holding_pnl
@@ -861,7 +868,6 @@ class PortfolioDailyResult:
         self.date: date = result_date
         self.close_prices: Dict[str, float] = close_prices
         self.pre_closes: Dict[str, float] = {}
-        self.pre_btc_closes: Dict[str, float] = {}
         self.start_poses: Dict[str, float] = {}
         self.end_poses: Dict[str, float] = {}
         self.contract_results: Dict[str, ContractDailyResult] = {}
@@ -877,7 +883,7 @@ class PortfolioDailyResult:
         for vt_symbol, close_price in close_prices.items():
             if not self.inverse_option: # for normal contract
                 self.contract_results[vt_symbol] = ContractDailyResult(result_date, close_price)
-            else:  # for inverse contract
+            else:  # for crypto inverse contract
                 btc_close_price = close_prices[self.btc_vt_symbol]
                 self.contract_results[vt_symbol] = ContractDailyResult(result_date, close_price, btc_close_price=btc_close_price)
 
@@ -909,12 +915,12 @@ class PortfolioDailyResult:
         for vt_symbol, contract_result in self.contract_results.items():
             contract_result.calculate_contract_pnl(
                 pre_closes.get(vt_symbol, 0),
+                pre_closes.get(self.btc_vt_symbol, 0),
                 start_poses.get(vt_symbol, 0),
                 sizes[vt_symbol],
                 rates[vt_symbol],
                 slippages[vt_symbol],
-                self.inverse_option,
-                self.btc_vt_symbol
+                self.inverse_option
             )
 
             self.trade_count += contract_result.trade_count
